@@ -6,7 +6,7 @@ const INPUT: &str = include_str!("res/01.txt");
 
 #[test]
 fn day1() {
-    let heap: BinaryHeap<u32> = INPUT
+    let mut heap: BinaryHeap<u32> = INPUT
         .split("\n\n")
         .map(|raw| {
             raw.lines()
@@ -15,9 +15,11 @@ fn day1() {
         })
         .collect();
 
-    let part1 = heap.peek().unwrap();
+    let &part1 = heap.peek().unwrap();
+    assert_eq!(68802, part1);
     println!("Day 1, part 1: {part1}");
 
-    let part2: u32 = heap.iter().take(3).sum();
+    let part2: u32 = heap.drain_sorted().take(3).sum();
+    assert_eq!(205370, part2);
     println!("Day 2, part 2: {part2}");
 }

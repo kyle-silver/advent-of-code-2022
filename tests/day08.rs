@@ -1,12 +1,33 @@
 const INPUT: &str = include_str!("res/08.txt");
 
 struct Forest {
-    trees: Vec<Vec<i8>>,
+    trees: Vec<Vec<u8>>,
     width: isize,
     height: isize,
 }
 
 type Position = (isize, isize);
+type Path = Box<dyn Iterator<Item = Position>>;
+
+fn march_left((col, row): Position, _forest: &Forest) -> Path {
+    let iter = (0..row).rev().map(move |x| (col, x));
+    Box::new(iter)
+}
+
+fn march_right((col, row): Position, forest: &Forest) -> Path {
+    let iter = ((row + 1)..(forest.width)).map(move |x| (col, x));
+    Box::new(iter)
+}
+
+fn march_up((col, row): Position, _forest: &Forest) -> Path {
+    let iter = (0..col).rev().map(move |x| (x, row));
+    Box::new(iter)
+}
+
+fn march_down((col, row): Position, forest: &Forest) -> Path {
+    let iter = ((col + 1)..(forest.height)).map(move |x| (x, row));
+    Box::new(iter)
+}
 
 impl Forest {
     fn parse(input: &str) -> Self {
@@ -14,8 +35,8 @@ impl Forest {
             .lines()
             .map(|line| {
                 line.chars()
-                    .map(|c| c.to_digit(10).unwrap() as i8)
-                    .collect::<Vec<i8>>()
+                    .map(|c| c.to_digit(10).unwrap() as u8)
+                    .collect::<Vec<u8>>()
             })
             .collect();
         Forest {
@@ -26,42 +47,26 @@ impl Forest {
     }
 
     fn eval(&self, tree: Position) -> (bool, u32) {
-        let (l_vis, l_score) = self.eval_for_direction(
-            tree,
-            |(_, row), _| Box::new((0..row).rev()), // march left
-            |(col, _), x| (col, x),
-        );
-        let (r_vis, r_score) = self.eval_for_direction(
-            tree,
-            |(_, row), forest| Box::new((row + 1)..(forest.width)), // march right
-            |(col, _), x| (col, x),
-        );
-        let (t_vis, t_score) = self.eval_for_direction(
-            tree,
-            |(col, _), _| Box::new((0..col).rev()), // march up
-            |(_, row), x| (x, row),
-        );
-        let (b_vis, b_score) = self.eval_for_direction(
-            tree,
-            |(col, _), forest| Box::new((col + 1)..(forest.width)), // march down
-            |(_, row), x| (x, row),
-        );
-        return (
-            l_vis || r_vis || t_vis || b_vis,
-            l_score * r_score * t_score * b_score,
-        );
+        let paths = [march_left, march_right, march_up, march_down];
+        paths
+            .iter()
+            .map(|&path| self.eval_for_path(tree, path))
+            .reduce(|(a_visible, a_score), (b_visible, b_score)| {
+                (a_visible || b_visible, a_score * b_score)
+            })
+            .unwrap()
     }
 
-    fn eval_for_direction(
+    fn eval_for_path(
         &self,
         tree: Position,
-        range: fn(Position, &Forest) -> Box<dyn Iterator<Item = isize>>,
-        to_get: fn(Position, isize) -> Position,
+        path: fn(Position, &Forest) -> Box<dyn Iterator<Item = Position>>,
     ) -> (bool, u32) {
-        let current = self.get(tree).unwrap();
         let mut count = 0;
-        for x in range(tree, &self) {
-            if let Some(val) = self.get(to_get(tree, x)) {
+        let current = self.get(tree).unwrap();
+        for step in path(tree, &self) {
+            // println!("tree: {tree:?} step: {step:?}");
+            if let Some(val) = self.get(step) {
                 count += 1;
                 if val >= current {
                     return (false, count);
@@ -71,7 +76,7 @@ impl Forest {
         (true, count)
     }
 
-    fn get(&self, position: Position) -> Option<i8> {
+    fn get(&self, position: Position) -> Option<u8> {
         let (col, row) = position;
         self.trees
             .get(col as usize)
@@ -90,8 +95,7 @@ fn day8() {
     let mut visible: Vec<Vec<(bool, u32)>> = vec![vec![(false, 0); height]; width];
     for col in 0..forest.height {
         for row in 0..forest.width {
-            // visible[col][row] = forest.visible((col as isize, row as isize));
-            visible[col as usize][row as usize] = forest.eval((col as isize, row as isize));
+            visible[col as usize][row as usize] = forest.eval((col, row));
         }
     }
 

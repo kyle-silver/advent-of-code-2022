@@ -57,15 +57,10 @@ impl Forest {
             .unwrap()
     }
 
-    fn eval_for_path(
-        &self,
-        tree: Position,
-        path: fn(Position, &Forest) -> Box<dyn Iterator<Item = Position>>,
-    ) -> (bool, u32) {
+    fn eval_for_path(&self, tree: Position, path: fn(Position, &Forest) -> Path) -> (bool, u32) {
         let mut count = 0;
         let current = self.get(tree).unwrap();
         for step in path(tree, &self) {
-            // println!("tree: {tree:?} step: {step:?}");
             if let Some(val) = self.get(step) {
                 count += 1;
                 if val >= current {

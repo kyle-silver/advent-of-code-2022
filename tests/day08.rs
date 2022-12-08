@@ -2,9 +2,11 @@ const INPUT: &str = include_str!("res/08.txt");
 
 struct Forest {
     trees: Vec<Vec<i8>>,
-    width: usize,
-    height: usize,
+    width: isize,
+    height: isize,
 }
+
+type Position = (isize, isize);
 
 impl Forest {
     fn parse(input: &str) -> Self {
@@ -17,20 +19,32 @@ impl Forest {
             })
             .collect();
         Forest {
-            width: trees[0].len(),
-            height: trees.len(),
+            width: trees[0].len() as isize,
+            height: trees.len() as isize,
             trees,
         }
     }
 
-    fn visible(&self, tree: (isize, isize)) -> (bool, usize) {
-        let (l_vis, l_score) = self.visible_left(tree);
-        let (r_vis, r_score) = self.visible_right(tree);
-        let (t_vis, t_score) = self.visible_top(tree);
-        let (b_vis, b_score) = self.visible_bottom(tree);
-        println!(
-            "{tree:?}: {t_score} * {l_score} * {b_score} * {r_score} ({:?})",
-            self.get(tree.0, tree.1)
+    fn eval(&self, tree: Position) -> (bool, u32) {
+        let (l_vis, l_score) = self.eval_for_direction(
+            tree,
+            |(_, row), _| Box::new((0..row).rev()), // march left
+            |(col, _), x| (col, x),
+        );
+        let (r_vis, r_score) = self.eval_for_direction(
+            tree,
+            |(_, row), forest| Box::new((row + 1)..(forest.width)), // march right
+            |(col, _), x| (col, x),
+        );
+        let (t_vis, t_score) = self.eval_for_direction(
+            tree,
+            |(col, _), _| Box::new((0..col).rev()), // march up
+            |(_, row), x| (x, row),
+        );
+        let (b_vis, b_score) = self.eval_for_direction(
+            tree,
+            |(col, _), forest| Box::new((col + 1)..(forest.width)), // march down
+            |(_, row), x| (x, row),
         );
         return (
             l_vis || r_vis || t_vis || b_vis,
@@ -38,12 +52,16 @@ impl Forest {
         );
     }
 
-    fn visible_left(&self, tree: (isize, isize)) -> (bool, usize) {
-        let (col, row) = tree;
-        let current = self.get(col, row).unwrap();
+    fn eval_for_direction(
+        &self,
+        tree: Position,
+        range: fn(Position, &Forest) -> Box<dyn Iterator<Item = isize>>,
+        to_get: fn(Position, isize) -> Position,
+    ) -> (bool, u32) {
+        let current = self.get(tree).unwrap();
         let mut count = 0;
-        for i in (0..row).rev() {
-            if let Some(val) = self.get(col, i) {
+        for x in range(tree, &self) {
+            if let Some(val) = self.get(to_get(tree, x)) {
                 count += 1;
                 if val >= current {
                     return (false, count);
@@ -53,52 +71,8 @@ impl Forest {
         (true, count)
     }
 
-    fn visible_right(&self, tree: (isize, isize)) -> (bool, usize) {
-        let (col, row) = tree;
-        let current = self.get(col, row).unwrap();
-        let mut count = 0;
-        for i in (row as isize + 1)..(self.width as isize) {
-            if let Some(val) = self.get(col, i) {
-                count += 1;
-                if val >= current {
-                    return (false, count);
-                }
-            }
-        }
-        (true, count)
-    }
-
-    fn visible_top(&self, tree: (isize, isize)) -> (bool, usize) {
-        let (col, row) = tree;
-        let current = self.get(col, row).unwrap();
-        let mut count = 0;
-        for j in (0..col).rev() {
-            if let Some(val) = self.get(j, row) {
-                count += 1;
-                if val >= current {
-                    return (false, count);
-                }
-            }
-        }
-        (true, count)
-    }
-
-    fn visible_bottom(&self, tree: (isize, isize)) -> (bool, usize) {
-        let (col, row) = tree;
-        let current = self.get(col, row).unwrap();
-        let mut count = 0;
-        for j in (col as isize + 1)..(self.width as isize) {
-            if let Some(val) = self.get(j, row) {
-                count += 1;
-                if val >= current {
-                    return (false, count);
-                }
-            }
-        }
-        (true, count)
-    }
-
-    fn get(&self, col: isize, row: isize) -> Option<i8> {
+    fn get(&self, position: Position) -> Option<i8> {
+        let (col, row) = position;
         self.trees
             .get(col as usize)
             .and_then(|v| v.get(row as usize))
@@ -112,10 +86,12 @@ fn day8() {
     let forest = Forest::parse(INPUT);
 
     // assess the forest
-    let mut visible: Vec<Vec<(bool, usize)>> = vec![vec![(false, 0); forest.height]; forest.width];
+    let (height, width) = (forest.height as usize, forest.width as usize);
+    let mut visible: Vec<Vec<(bool, u32)>> = vec![vec![(false, 0); height]; width];
     for col in 0..forest.height {
         for row in 0..forest.width {
-            visible[col][row] = forest.visible((col as isize, row as isize));
+            // visible[col][row] = forest.visible((col as isize, row as isize));
+            visible[col as usize][row as usize] = forest.eval((col as isize, row as isize));
         }
     }
 

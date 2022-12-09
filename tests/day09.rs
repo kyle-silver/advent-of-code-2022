@@ -4,7 +4,6 @@ use std::{
 };
 
 const INPUT: &str = include_str!("res/09.txt");
-
 type Delta = (i32, i32);
 
 #[derive(Debug)]
@@ -13,6 +12,17 @@ enum Direction {
     Down,
     Left,
     Right,
+}
+
+impl Direction {
+    fn delta(&self) -> Delta {
+        match self {
+            Direction::Up => (0, 1),
+            Direction::Down => (0, -1),
+            Direction::Left => (-1, 0),
+            Direction::Right => (1, 0),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -44,45 +54,17 @@ struct Knot {
 
 impl Knot {
     fn move_in(&self, direction: &Direction) -> Self {
-        match direction {
-            Direction::Up => Knot {
-                x: self.x + 1,
-                ..*self
-            },
-            Direction::Down => Knot {
-                x: self.x - 1,
-                ..*self
-            },
-            Direction::Left => Knot {
-                y: self.y - 1,
-                ..*self
-            },
-            Direction::Right => Knot {
-                y: self.y + 1,
-                ..*self
-            },
-        }
+        *self + direction.delta()
     }
 
     fn delta(&self, other: &Self) -> (Delta, bool) {
-        let delta = self - other;
-        let touching = delta.0.abs() < 2 && delta.1.abs() < 2;
-        let normalized = (
-            Self::normalize_distance(delta.0),
-            Self::normalize_distance(delta.1),
-        );
+        let (dx, dy) = self - other;
+        let touching = dx.abs() < 2 && dy.abs() < 2;
+        let normalized = (dx / dx.abs().max(1), dy / dy.abs().max(1));
         (normalized, touching)
     }
 
-    fn normalize_distance(distance: i32) -> i32 {
-        if distance == 0 {
-            distance
-        } else {
-            distance / distance.abs()
-        }
-    }
-
-    fn move_in_response(&self, leader: &Self) -> Self {
+    fn follow(&self, leader: &Self) -> Self {
         let (delta, touching) = leader.delta(&self);
         if touching {
             *self
@@ -119,16 +101,16 @@ impl Rope {
         Self(vec![Knot::default(); n])
     }
 
-    fn move_head(&self, direction: &Direction) -> Self {
+    fn update(&mut self, direction: &Direction) {
         let head = self.0[0].move_in(direction);
-        let mut updated = Vec::with_capacity(self.0.len());
-        updated.push(head);
-        for knot in &self.0[1..] {
-            let last = updated.last().unwrap();
-            let moved = knot.move_in_response(last);
-            updated.push(moved);
+        self.0[0] = head;
+        for i in 1..self.0.len() {
+            // apparently having a windows_mut() method is once again something
+            // that requires GATs because it depends on a Lending Iterator...
+            if let [prev, current] = self.0[(i - 1)..=i].as_mut() {
+                *current = current.follow(prev);
+            }
         }
-        Rope(updated)
     }
 
     fn tail(&self) -> Knot {
@@ -152,7 +134,7 @@ impl Grid {
 
     fn update(&mut self, instruction: &Instruction) {
         for _ in 0..instruction.steps {
-            self.rope = self.rope.move_head(&instruction.direction);
+            self.rope.update(&instruction.direction);
             self.visited.insert(self.rope.tail());
         }
     }

@@ -1,6 +1,11 @@
-use std::{collections::HashSet, ops::Add};
+use std::{
+    collections::HashSet,
+    ops::{Add, Sub},
+};
 
 const INPUT: &str = include_str!("res/09.txt");
+
+type Delta = (i32, i32);
 
 #[derive(Debug)]
 enum Direction {
@@ -32,50 +37,41 @@ impl Instruction {
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Default)]
-struct Point {
-    col: i32,
-    row: i32,
+struct Knot {
+    x: i32,
+    y: i32,
 }
 
-impl Point {
+impl Knot {
     fn move_in(&self, direction: &Direction) -> Self {
         match direction {
-            Direction::Up => Point {
-                col: self.col + 1,
+            Direction::Up => Knot {
+                x: self.x + 1,
                 ..*self
             },
-            Direction::Down => Point {
-                col: self.col - 1,
+            Direction::Down => Knot {
+                x: self.x - 1,
                 ..*self
             },
-            Direction::Left => Point {
-                row: self.row - 1,
+            Direction::Left => Knot {
+                y: self.y - 1,
                 ..*self
             },
-            Direction::Right => Point {
-                row: self.row + 1,
+            Direction::Right => Knot {
+                y: self.y + 1,
                 ..*self
             },
         }
     }
 
-    // fn touching(&self, other: &Self) -> bool {
-    //     // let delta_col = (self.col - other.col).abs();
-    //     // let delta_row = (self.row - other.row).abs();
-    //     // delta_col <= 1 && delta_row <= 1
-    //     let delta = self.delta(other);
-    //     delta.0 == 0 || delta.1 == 0
-    // }
-
-    fn delta(&self, other: &Self) -> ((i32, i32), bool) {
-        let delta_col = self.col - other.col;
-        let delta_row = self.row - other.row;
-        let touching = delta_col.abs() < 2 && delta_row.abs() < 2;
-        let delta = (
-            Self::normalize_distance(delta_col),
-            Self::normalize_distance(delta_row),
+    fn delta(&self, other: &Self) -> (Delta, bool) {
+        let delta = self - other;
+        let touching = delta.0.abs() < 2 && delta.1.abs() < 2;
+        let normalized = (
+            Self::normalize_distance(delta.0),
+            Self::normalize_distance(delta.1),
         );
-        (delta, touching)
+        (normalized, touching)
     }
 
     fn normalize_distance(distance: i32) -> i32 {
@@ -85,69 +81,79 @@ impl Point {
             distance / distance.abs()
         }
     }
-}
 
-impl Add<(i32, i32)> for Point {
-    type Output = Point;
-
-    fn add(self, (col, row): (i32, i32)) -> Self::Output {
-        Point {
-            col: self.col + col,
-            row: self.row + row,
+    fn move_in_response(&self, leader: &Self) -> Self {
+        let (delta, touching) = leader.delta(&self);
+        if touching {
+            *self
+        } else {
+            *self + delta
         }
     }
 }
 
-#[derive(Debug, Default)]
-struct Rope {
-    head: Point,
-    tail: Point,
+impl Add<Delta> for Knot {
+    type Output = Knot;
+
+    fn add(self, (col, row): Delta) -> Self::Output {
+        Knot {
+            x: self.x + col,
+            y: self.y + row,
+        }
+    }
 }
 
-impl Rope {
-    fn move_head(&self, direction: &Direction) -> Self {
-        let head = self.head.move_in(direction);
-        let (delta, touching) = self.head.delta(&self.tail);
-        if touching {
-            return Rope { head, ..*self };
-        }
-        let movement = (delta.0, delta.1);
-        return Rope {
-            head,
-            tail: self.tail + movement,
-        };
+impl Sub<&Knot> for &Knot {
+    type Output = Delta;
 
-        // if head.touching(&self.tail) {
-        //     return Rope { head, ..*self };
-        // }
-        // return Rope {
-        //     head,
-        //     tail: self.head,
-        // };
+    fn sub(self, rhs: &Knot) -> Self::Output {
+        (self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+#[derive(Debug)]
+struct Rope(Vec<Knot>);
+
+impl Rope {
+    fn new(n: usize) -> Self {
+        Self(vec![Knot::default(); n])
+    }
+
+    fn move_head(&self, direction: &Direction) -> Self {
+        let head = self.0[0].move_in(direction);
+        let mut updated = Vec::with_capacity(self.0.len());
+        updated.push(head);
+        for knot in &self.0[1..] {
+            let last = updated.last().unwrap();
+            let moved = knot.move_in_response(last);
+            updated.push(moved);
+        }
+        Rope(updated)
+    }
+
+    fn tail(&self) -> Knot {
+        *self.0.last().unwrap()
     }
 }
 
 #[derive(Debug)]
 struct Grid {
     rope: Rope,
-    visited: HashSet<Point>,
+    visited: HashSet<Knot>,
 }
 
 impl Grid {
-    fn new() -> Self {
-        let mut grid = Grid {
-            rope: Rope::default(),
+    fn new(n: usize) -> Self {
+        Grid {
+            rope: Rope::new(n),
             visited: HashSet::new(),
-        };
-        grid.visited.insert(grid.rope.tail);
-        grid
+        }
     }
 
     fn update(&mut self, instruction: &Instruction) {
         for _ in 0..instruction.steps {
             self.rope = self.rope.move_head(&instruction.direction);
-            // println!("{:?}", self.rope);
-            self.visited.insert(self.rope.tail);
+            self.visited.insert(self.rope.tail());
         }
     }
 
@@ -159,10 +165,21 @@ impl Grid {
 #[test]
 fn part1() {
     let instructions: Vec<_> = INPUT.lines().map(Instruction::parse).collect();
-    let mut grid = Grid::new();
+    let mut grid = Grid::new(2);
     for instruction in &instructions {
         grid.update(instruction);
     }
     println!("Day 9, part 1: {}", grid.visited());
     assert_eq!(6332, grid.visited())
+}
+
+#[test]
+fn part2() {
+    let instructions: Vec<_> = INPUT.lines().map(Instruction::parse).collect();
+    let mut grid = Grid::new(10);
+    for instruction in &instructions {
+        grid.update(instruction);
+    }
+    println!("Day 9, part 2: {}", grid.visited());
+    assert_eq!(2511, grid.visited());
 }

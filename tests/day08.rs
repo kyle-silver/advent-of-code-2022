@@ -29,6 +29,8 @@ fn march_down((col, row): Position, forest: &Forest) -> Path {
     Box::new(iter)
 }
 
+const PATHS: [fn(Position, &Forest) -> Path; 4] = [march_left, march_right, march_up, march_down];
+
 impl Forest {
     fn parse(input: &str) -> Self {
         let trees: Vec<_> = input
@@ -47,17 +49,16 @@ impl Forest {
     }
 
     fn eval(&self, tree: Position) -> (bool, u32) {
-        let paths = [march_left, march_right, march_up, march_down];
-        paths
+        PATHS
             .iter()
-            .map(|&path| self.eval_for_path(tree, path))
+            .map(|&path| self.eval_for(tree, path))
             .reduce(|(a_visible, a_score), (b_visible, b_score)| {
                 (a_visible || b_visible, a_score * b_score)
             })
             .unwrap()
     }
 
-    fn eval_for_path(&self, tree: Position, path: fn(Position, &Forest) -> Path) -> (bool, u32) {
+    fn eval_for(&self, tree: Position, path: fn(Position, &Forest) -> Path) -> (bool, u32) {
         let mut count = 0;
         let current = self.get(tree).unwrap();
         for step in path(tree, &self) {
@@ -87,26 +88,28 @@ fn day8() {
 
     // assess the forest
     let (height, width) = (forest.height as usize, forest.width as usize);
-    let mut visible: Vec<Vec<(bool, u32)>> = vec![vec![(false, 0); height]; width];
+    let mut evaluated: Vec<Vec<(bool, u32)>> = vec![vec![(false, 0); height]; width];
     for col in 0..forest.height {
         for row in 0..forest.width {
-            visible[col as usize][row as usize] = forest.eval((col, row));
+            evaluated[col as usize][row as usize] = forest.eval((col, row));
         }
     }
 
     // part 1
-    let total_visible: u32 = visible
+    let total_visible: u32 = evaluated
         .iter()
         .map(|v| v.iter().filter(|(x, _)| *x).count() as u32)
         .sum();
     println!("Day 8, part 1: {total_visible}");
+    assert_eq!(1859, total_visible);
 
     // part 2
-    let high_score = *visible
+    let high_score = *evaluated
         .iter()
         .flat_map(|v| v.iter())
         .map(|(_, score)| score)
         .max()
         .unwrap();
     println!("Day 8, part 2: {high_score}");
+    assert_eq!(332640, high_score)
 }

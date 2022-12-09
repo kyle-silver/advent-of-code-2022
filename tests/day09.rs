@@ -102,8 +102,7 @@ impl Rope {
     }
 
     fn update(&mut self, direction: &Direction) {
-        let head = self.0[0].move_in(direction);
-        self.0[0] = head;
+        self.0[0] = self.0[0].move_in(direction);
         for i in 1..self.0.len() {
             // apparently having a windows_mut() method is once again something
             // that requires GATs because it depends on a Lending Iterator...

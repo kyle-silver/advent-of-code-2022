@@ -5,7 +5,7 @@ const INPUT: &str = include_str!("res/11.txt");
 
 #[derive(Debug)]
 struct Test {
-    divisible_by: u32,
+    divisible_by: u64,
     on_true: usize,
     on_false: usize,
 }
@@ -22,12 +22,12 @@ impl Test {
         }
     }
 
-    fn parse_at(line: &str, index: usize) -> u32 {
+    fn parse_at(line: &str, index: usize) -> u64 {
         let mut tokens = line.split_whitespace();
         tokens.nth(index).and_then(|x| x.parse().ok()).unwrap()
     }
 
-    fn eval(&self, val: u32) -> usize {
+    fn eval(&self, val: u64) -> usize {
         if val % &self.divisible_by == 0 {
             self.on_true
         } else {
@@ -55,7 +55,7 @@ impl Action {
 #[derive(Debug)]
 enum Arg {
     Old,
-    Const(u32),
+    Const(u64),
 }
 
 impl Arg {
@@ -66,7 +66,7 @@ impl Arg {
         }
     }
 
-    fn val(&self, old: u32) -> u32 {
+    fn val(&self, old: u64) -> u64 {
         match self {
             Arg::Old => old,
             Arg::Const(x) => *x,
@@ -91,7 +91,7 @@ impl Op {
         Self { a, b, action }
     }
 
-    fn eval(&self, old: u32) -> u32 {
+    fn eval(&self, old: u64) -> u64 {
         let (a, b) = (self.a.val(old), self.b.val(old));
         match self.action {
             Action::Add => a + b,
@@ -103,10 +103,10 @@ impl Op {
 #[derive(Debug)]
 
 struct Monkey {
-    items: VecDeque<u32>,
+    items: VecDeque<u64>,
     op: Op,
     test: Test,
-    total_inspected: u32,
+    total_inspected: u64,
 }
 
 impl Monkey {
@@ -125,10 +125,10 @@ impl Monkey {
         }
     }
 
-    fn eval_next(&mut self, worry_reduction: bool) -> Option<(u32, usize)> {
+    fn eval_next(&mut self, worry_reduction: bool, ceil: u64) -> Option<(u64, usize)> {
         if let Some(item) = self.items.pop_front() {
             self.total_inspected += 1;
-            let mut scored = self.op.eval(item);
+            let mut scored = self.op.eval(item) % ceil;
             if worry_reduction {
                 scored /= 3;
             }
@@ -139,14 +139,14 @@ impl Monkey {
         }
     }
 
-    fn receive(&mut self, item: u32) {
+    fn receive(&mut self, item: u64) {
         self.items.push_back(item);
     }
 }
 
-fn round(monkeys: &mut [Monkey], worry_reduction: bool) {
+fn round(monkeys: &mut [Monkey], worry_reduction: bool, ceil: u64) {
     for i in 0..monkeys.len() {
-        while let Some((item, recipient)) = monkeys[i].eval_next(worry_reduction) {
+        while let Some((item, recipient)) = monkeys[i].eval_next(worry_reduction, ceil) {
             monkeys[recipient].receive(item);
         }
     }
@@ -155,11 +155,12 @@ fn round(monkeys: &mut [Monkey], worry_reduction: bool) {
 #[test]
 fn part1() {
     let mut monkeys: Vec<_> = INPUT.split("\n\n").map(Monkey::parse).collect();
+    let ceil = monkeys.iter().map(|m| m.test.divisible_by).product();
     for _ in 0..20 {
-        round(&mut monkeys, true);
+        round(&mut monkeys, true, ceil);
     }
     let mut activity: BinaryHeap<_> = monkeys.iter().map(|m| m.total_inspected).collect();
-    let ans: u32 = activity.drain_sorted().take(2).product();
+    let ans: u64 = activity.drain_sorted().take(2).product();
     println!("Day 11, part 1: {ans}");
     assert_eq!(58056, ans);
 }
@@ -167,11 +168,12 @@ fn part1() {
 #[test]
 fn part2() {
     let mut monkeys: Vec<_> = INPUT.split("\n\n").map(Monkey::parse).collect();
+    let ceil = monkeys.iter().map(|m| m.test.divisible_by).product();
     for _ in 0..10_000 {
-        round(&mut monkeys, false);
+        round(&mut monkeys, false, ceil);
     }
     let mut activity: BinaryHeap<_> = monkeys.iter().map(|m| m.total_inspected).collect();
-    let ans: u32 = activity.drain_sorted().take(2).product();
+    let ans: u64 = activity.drain_sorted().take(2).product();
     println!("Day 11, part 2: {ans}");
-    // assert_eq!(58056, ans);
+    assert_eq!(15048718170, ans);
 }

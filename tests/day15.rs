@@ -15,7 +15,6 @@ struct Sensor {
 
 impl Sensor {
     fn parse(input: &str) -> Self {
-        // 1 2 3 4
         let coords: Vec<i64> = input
             .split_whitespace()
             .map(&str::parse)
@@ -112,15 +111,11 @@ fn part2() {
                 RangeInclusive::new(start, end)
             })
             .collect();
-        if depth % 100_000 == 0 {
-            println!("At depth {depth}");
-        }
         let mut acc = ranges.pop_front().unwrap();
         'inner: loop {
             let mut incompatible = VecDeque::new();
             while let Some(b) = ranges.pop_front() {
                 let combined = combined(&acc, &b);
-                // println!("{acc:?} + {b:?} = {combined:?}");
                 if let Some(c) = combined {
                     acc = c;
                 } else {

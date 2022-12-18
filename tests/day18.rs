@@ -91,9 +91,6 @@ impl Bounds {
 }
 
 fn fill(point: Point, shape: &HashSet<Point>, complement: &mut HashSet<Point>, bounds: &Bounds) {
-    if shape.contains(&point) {
-        return;
-    }
     let candidates = DIRECTIONS
         .iter()
         .map(|direction| &point + *direction)

@@ -45,51 +45,46 @@ fn surface_area(shape: &HashSet<Point>) -> usize {
     shape.iter().map(|point| exposed(point, shape)).sum()
 }
 
-#[test]
-fn part1() {
-    let shape = INPUT.lines().map(parse).collect();
-    println!("Day 18, part 1: {}", surface_area(&shape));
-}
-
 #[derive(Debug)]
 struct Bounds {
-    x_min: i32,
-    x_max: i32,
-    y_min: i32,
-    y_max: i32,
-    z_min: i32,
-    z_max: i32,
+    low: Point,
+    high: Point,
 }
 
 impl Bounds {
     fn new(shape: &HashSet<Point>) -> Self {
+        // find the two corners that define the bounding box of this shape
+        let mut points = shape.iter();
+        let mut low = points.next().unwrap().clone();
+        let mut high = low.clone();
+        for p in points {
+            low = Point(low.0.min(p.0), low.1.min(p.1), low.2.min(p.2));
+            high = Point(high.0.max(p.0), high.1.max(p.1), high.2.max(p.2));
+        }
+
         Self {
-            x_min: shape.iter().map(|p| p.0).min().unwrap() - 1,
-            x_max: shape.iter().map(|p| p.0).max().unwrap() + 1,
-            y_min: shape.iter().map(|p| p.1).min().unwrap() - 1,
-            y_max: shape.iter().map(|p| p.1).max().unwrap() + 1,
-            z_min: shape.iter().map(|p| p.2).min().unwrap() - 1,
-            z_max: shape.iter().map(|p| p.2).max().unwrap() + 1,
+            low: &low + (-1, -1, -1),
+            high: &high + (1, 1, 1),
         }
     }
 
     fn contains(&self, point: &Point) -> bool {
-        if !(self.x_min <= point.0 && point.0 <= self.x_max) {
+        if !(self.low.0 <= point.0 && point.0 <= self.high.0) {
             return false;
         }
-        if !(self.y_min <= point.1 && point.1 <= self.y_max) {
+        if !(self.low.1 <= point.1 && point.1 <= self.high.1) {
             return false;
         }
-        if !(self.z_min <= point.2 && point.2 <= self.z_max) {
+        if !(self.low.2 <= point.2 && point.2 <= self.high.2) {
             return false;
         }
         true
     }
 
     fn exterior_surface_area(&self) -> i32 {
-        let delta_x = (self.x_max - self.x_min) + 1;
-        let delta_y = (self.y_max - self.y_min) + 1;
-        let delta_z = (self.z_max - self.z_min) + 1;
+        let delta_x = (self.high.0 - self.low.0) + 1;
+        let delta_y = (self.high.1 - self.low.1) + 1;
+        let delta_z = (self.high.2 - self.low.2) + 1;
 
         (2 * delta_x * delta_y) + (2 * delta_x * delta_z) + (2 * delta_y * delta_z)
     }
@@ -113,25 +108,38 @@ fn fill(point: Point, shape: &HashSet<Point>, complement: &mut HashSet<Point>, b
 }
 
 #[test]
+fn part1() {
+    let shape = INPUT.lines().map(parse).collect();
+    let ans = surface_area(&shape);
+    println!("Day 18, part 1: {ans}");
+    assert_eq!(4536, ans);
+}
+
+#[test]
 fn part2() {
-    // we need to find the bounds of the shape and then do some ray marching
     let shape: HashSet<Point> = INPUT.lines().map(parse).collect();
+
+    // create a cuboid which is slightly larger than the original shape
     let bounds = Bounds::new(&shape);
 
-    // We're going to start "filling" this bounded cube of space with a
-    // complementary set. When we've finished "inflating" this balloon, we'll
-    // know that any remaining non-occupied spaces within the bounds which are
-    // not part of the complementary set are air pockets.
+    // We're going to start "filling" this bounded cuboid of space with a
+    // complementary set of points, starting at a position we know for certain
+    // is outside of the shape. When we've completely filled this exterior
+    // volume, we'll know that any remaining spaces which are in bound but
+    // members of neither the original shape nor the complementary set must be
+    // air pockets.
     let mut complement = HashSet::<Point>::new();
-    let start = Point(bounds.x_max, bounds.y_max, bounds.z_max);
+    let start = bounds.high.clone();
 
     // this needs to be run in release mode otherwise the stack overflows...
     fill(start, &shape, &mut complement, &bounds);
 
-    // We can use the surface area of the complement to get the exterior surface
-    // area of our main shape, but we need to subtract the exterior surface area
-    // of the *complement* first. Thankfully, since it's guaranteed to be some
-    // kind of cuboid we actually have an explicit equation for it.s
+    // We can use the surface area of the complementary set to get the exterior
+    // surface area of our original shape, but we first need to subtract the
+    // exterior surface area of the *complement*. Thankfully, since it's
+    // guaranteed to be some kind of cuboid we actually have an explicit
+    // equation for it.
     let ans = surface_area(&complement) - bounds.exterior_surface_area() as usize;
     println!("Day 18, part 2: {ans}");
+    assert_eq!(2606, ans);
 }

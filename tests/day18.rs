@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::{collections::HashSet, ops::Add};
+use std::{
+    collections::{HashSet, VecDeque},
+    ops::Add,
+};
 
 type Delta = (i32, i32, i32);
 
@@ -90,18 +93,40 @@ impl Bounds {
     }
 }
 
-fn fill(point: Point, shape: &HashSet<Point>, complement: &mut HashSet<Point>, bounds: &Bounds) {
-    let candidates = DIRECTIONS
-        .iter()
-        .map(|direction| &point + *direction)
-        .filter(|point| bounds.contains(point))
-        .filter(|point| !shape.contains(point))
-        .filter(|point| !complement.contains(point))
-        .collect_vec();
-    complement.insert(point);
-    for candidate in candidates {
-        fill(candidate, shape, complement, bounds);
+fn bfs_complement(shape: &HashSet<Point>, bounds: &Bounds) -> HashSet<Point> {
+    // this will both let us know which points we've visited and let us compute
+    // the final surface area when we're done
+    let mut complement = HashSet::new();
+
+    // queue for breadth-first search.
+    let mut queue = VecDeque::new();
+    queue.push_front(bounds.high.clone());
+
+    // we have to mark the starting point as explored before entering the loop
+    complement.insert(bounds.high.clone());
+
+    // breadth-first search
+    while let Some(point) = queue.pop_front() {
+        // these are all the points to visit next. they must be inside our
+        // bounding box and neither part of the original shape nor the
+        // complement
+        let candidates = DIRECTIONS
+            .iter()
+            .map(|direction| &point + *direction)
+            .filter(|neighbor| bounds.contains(neighbor))
+            .filter(|neighbor| !shape.contains(neighbor))
+            .filter(|neighbor| !complement.contains(neighbor))
+            .collect_vec();
+
+        // once we've generated all of the new points, we can mark them, as
+        // visited and then enqueue them to be explored later
+        for point in &candidates {
+            complement.insert(point.clone());
+            queue.push_back(point.clone())
+        }
     }
+
+    complement
 }
 
 #[test]
@@ -114,6 +139,7 @@ fn part1() {
 
 #[test]
 fn part2() {
+    // parse the input
     let shape: HashSet<Point> = INPUT.lines().map(parse).collect();
 
     // create a cuboid which is slightly larger than the original shape
@@ -125,11 +151,7 @@ fn part2() {
     // volume, we'll know that any remaining spaces which are in bound but
     // members of neither the original shape nor the complementary set must be
     // air pockets.
-    let mut complement = HashSet::<Point>::new();
-    let start = bounds.high.clone();
-
-    // this needs to be run in release mode otherwise the stack overflows...
-    fill(start, &shape, &mut complement, &bounds);
+    let complement = bfs_complement(&shape, &bounds);
 
     // We can use the surface area of the complementary set to get the exterior
     // surface area of our original shape, but we first need to subtract the
